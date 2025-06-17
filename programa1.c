@@ -6,7 +6,7 @@
 #define MAX_LINE 256
 #define MAX_SENSOR_NAME 50
 #define MAX_SENSORS 100
-#define MAX_READINGS 10000
+#define MAX_READINGS 20000
 
 typedef struct {
     time_t timestamp;
@@ -16,13 +16,15 @@ typedef struct {
 
 typedef struct {
     char nome[MAX_SENSOR_NAME];
-    Leitura leituras[MAX_READINGS];
+    Leitura *leituras;
     int count;
+    int capacity;
 } SensorData;
 
-const char* sensores_suportados[] = {"TEMP", "PRES", "VIBR", "UMID", "FLUX", "PESO", "VELO", "ANGL"};
+const char* sensores_suportados[] = {"TEMP", "PRES", "VIBR", "UMID", "FLUX"};
 const int num_sensores_suportados = 8;
 
+// Verifica se o sensor está na lista de suportados
 int is_sensor_suportado(const char* sensor_name) {
     for (int i = 0; i < num_sensores_suportados; i++) {
         if (strcmp(sensor_name, sensores_suportados[i]) == 0) {
@@ -32,6 +34,7 @@ int is_sensor_suportado(const char* sensor_name) {
     return 0;
 }
 
+// Função de comparação para ordenar leituras por timestamp
 int comparar_leituras(const void *a, const void *b) {
     Leitura *la = (Leitura *)a;
     Leitura *lb = (Leitura *)b;
@@ -41,6 +44,7 @@ int comparar_leituras(const void *a, const void *b) {
     return 0;
 }
 
+// Localiza ou adiciona um novo sensor no array de sensores
 int encontrar_sensor(SensorData sensors[], int *num_sensors, const char* sensor_name) {
     for (int i = 0; i < *num_sensors; i++) {
         if (strcmp(sensors[i].nome, sensor_name) == 0) {
@@ -48,14 +52,31 @@ int encontrar_sensor(SensorData sensors[], int *num_sensors, const char* sensor_
         }
     }
     
+    // Se não encontrou e há espaço disponível, adiciona novo
     if (*num_sensors < MAX_SENSORS) {
         strcpy(sensors[*num_sensors].nome, sensor_name);
         sensors[*num_sensors].count = 0;
+        sensors[*num_sensors].capacity = MAX_READINGS;
+        sensors[*num_sensors].leituras = (Leitura*)malloc(MAX_READINGS * sizeof(Leitura));
+        if (!sensors[*num_sensors].leituras) {
+            printf("Erro: Não foi possível alocar memória para sensor %s\n", sensor_name);
+            return -1;
+        }
         (*num_sensors)++;
         return *num_sensors - 1;
     }
     
     return -1;
+}
+
+// Libera a memória alocada dinamicamente para cada sensor
+void liberar_memoria(SensorData sensors[], int num_sensors) {
+    for (int i = 0; i < num_sensors; i++) {
+        if (sensors[i].leituras) {
+            free(sensors[i].leituras);
+            sensors[i].leituras = NULL;
+        }
+    }
 }
 
 int main(int argc, char *argv[]) {
@@ -64,20 +85,27 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     
+    // Tenta abrir o arquivo
     FILE *arquivo = fopen(argv[1], "r");
     if (!arquivo) {
         printf("Erro: Não foi possível abrir o arquivo '%s'\n", argv[1]);
         return 1;
     }
     
+    // Inicializa o array de sensores
     SensorData sensors[MAX_SENSORS];
     int num_sensors = 0;
     char linha[MAX_LINE];
     int linhas_processadas = 0;
     int linhas_validas = 0;
     
+    for (int i = 0; i < MAX_SENSORS; i++) {
+        sensors[i].leituras = NULL;
+    }
+    
     printf("Processando arquivo: %s\n", argv[1]);
     
+    // Lê cada linha do arquivo
     while (fgets(linha, sizeof(linha), arquivo)) {
         linhas_processadas++;
         
@@ -89,11 +117,15 @@ int main(int argc, char *argv[]) {
         char sensor_id[MAX_SENSOR_NAME];
         char valor[100];
         
+        // Verifica se a linha está no formato correto (timestamp, sensor_id, valor)
         if (sscanf(linha, "%ld %s %s", &timestamp, sensor_id, valor) == 3) {
+            // Verifica se o sensor é suportado
             if (is_sensor_suportado(sensor_id)) {
+                // Encontra ou adiciona o sensor no array de sensores
                 int sensor_index = encontrar_sensor(sensors, &num_sensors, sensor_id);
                 
-                if (sensor_index >= 0 && sensors[sensor_index].count < MAX_READINGS) {
+                // Verifica se há espaço disponível para adicionar a leitura
+                if (sensor_index >= 0 && sensors[sensor_index].count < sensors[sensor_index].capacity) {
                     sensors[sensor_index].leituras[sensors[sensor_index].count].timestamp = timestamp;
                     strcpy(sensors[sensor_index].leituras[sensors[sensor_index].count].sensor_id, sensor_id);
                     strcpy(sensors[sensor_index].leituras[sensors[sensor_index].count].valor, valor);
@@ -117,6 +149,7 @@ int main(int argc, char *argv[]) {
     printf("- Linhas válidas: %d\n", linhas_validas);
     printf("- Sensores identificados: %d\n", num_sensors);
     
+    // Ordena as leituras de cada sensor
     for (int i = 0; i < num_sensors; i++) {
         if (sensors[i].count > 0) {
             qsort(sensors[i].leituras, sensors[i].count, sizeof(Leitura), comparar_leituras);
@@ -139,6 +172,9 @@ int main(int argc, char *argv[]) {
             }
         }
     }
+    
+    // Libera a memória alocada dinamicamente para cada sensor
+    liberar_memoria(sensors, num_sensors);
     
     return 0;
 } 

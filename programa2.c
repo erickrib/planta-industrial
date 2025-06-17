@@ -13,6 +13,7 @@ typedef struct {
     char valor[100];
 } Leitura;
 
+// Converte data/hora para timestamp (formato Unix)
 time_t converter_para_timestamp(int dia, int mes, int ano, int hora, int min, int seg) {
     struct tm t;
 
@@ -32,6 +33,7 @@ time_t converter_para_timestamp(int dia, int mes, int ano, int hora, int min, in
     return timestamp;
 }
 
+// Carrega as leituras de um sensor a partir de um arquivo
 int carregar_leituras(const char* nome_sensor, Leitura** leituras) {
     char nome_arquivo[100];
     sprintf(nome_arquivo, "%s.txt", nome_sensor);
@@ -81,6 +83,7 @@ int carregar_leituras(const char* nome_sensor, Leitura** leituras) {
     return i;
 }
 
+// Realiza a busca binária para encontrar a leitura mais próxima
 int busca_binaria_proxima(Leitura* leituras, int tamanho, time_t timestamp_alvo) {
     if (tamanho == 0) return -1;
     
@@ -128,6 +131,7 @@ int busca_binaria_proxima(Leitura* leituras, int tamanho, time_t timestamp_alvo)
     return melhor_indice;
 }
 
+// Formata o timestamp para uma string legível
 void formatar_timestamp(time_t timestamp, char* buffer) {
     struct tm* tm_info = localtime(&timestamp);
     strftime(buffer, 100, "%d/%m/%Y %H:%M:%S", tm_info);
@@ -140,9 +144,11 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
+    // Lê os parâmetros da linha de comando
     char nome_sensor[MAX_SENSOR_NAME];
     int dia, mes, ano, hora, min, seg;
     
+    // Copia os parâmetros para as variáveis
     strcpy(nome_sensor, argv[1]);
     dia = atoi(argv[2]);
     mes = atoi(argv[3]);
@@ -151,12 +157,14 @@ int main(int argc, char* argv[]) {
     min = atoi(argv[6]);
     seg = atoi(argv[7]);
     
+    // Verifica se a data/hora é válida
     if (dia < 1 || dia > 31 || mes < 1 || mes > 12 || ano < 1970 || 
         hora < 0 || hora > 23 || min < 0 || min > 59 || seg < 0 || seg > 59) {
         printf("Erro: Data/hora inválida.\n");
         return 1;
     }
     
+    // Converte a data/hora para timestamp
     time_t timestamp_alvo = converter_para_timestamp(dia, mes, ano, hora, min, seg);
     if (timestamp_alvo == -1) {
         return 1;
@@ -175,6 +183,7 @@ int main(int argc, char* argv[]) {
     
     printf("Arquivo carregado: %d leituras encontradas.\n", num_leituras);
     
+    // Realiza a busca binária para encontrar a leitura mais próxima
     int indice_encontrado = busca_binaria_proxima(leituras, num_leituras, timestamp_alvo);
     
     if (indice_encontrado >= 0) {
